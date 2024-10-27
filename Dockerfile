@@ -1,4 +1,5 @@
-FROM node:current-slim
+# Use a base image that includes Playwright and its dependencies
+FROM mcr.microsoft.com/playwright:v1.20.0-focal
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -19,4 +20,4 @@ RUN npm run build
 EXPOSE 8080
 
 # Start the app
-CMD npm run start
+CMD ["npm", "run", "start"]
