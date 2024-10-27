@@ -14,47 +14,77 @@ articleReaderRegistry.register('ArticleReader', ArticleReaderSchema);
 
 const fetchAndCleanContent = async (url: string) => {
   const browser = await chromium.launch({ headless: true }); // Launch Playwright
-  const page = await browser.newPage(); // Create a new page
-  await page.goto(url, { waitUntil: 'networkidle' }); // Navigate to the URL
+  let page; // Declare page variable outside the try block
 
-  const title = await page.title(); // Get the title
-  const content = await page.evaluate(() => {
-    // Remove unwanted elements
-    const elementsToRemove = [
-      'footer',
-      'header',
-      'nav',
-      'script',
-      'style',
-      'link',
-      'meta',
-      'noscript',
-      'img',
-      'picture',
-      'video',
-      'audio',
-      'iframe',
-      'object',
-      'embed',
-      'param',
-      'track',
-      'source',
-      'canvas',
-      'map',
-      'area',
-      'svg',
-      'math',
-    ];
-    elementsToRemove.forEach((element) => {
-      const el = document.querySelector(element);
-      if (el) el.remove();
+  const extractContent = async (page: any) => {
+    const title = await page.title(); // Get the title
+    const content = await page.evaluate(() => {
+      // Remove unwanted elements
+      const elementsToRemove = [
+        'footer',
+        'header',
+        'nav',
+        'script',
+        'style',
+        'link',
+        'meta',
+        'noscript',
+        'img',
+        'picture',
+        'video',
+        'audio',
+        'iframe',
+        'object',
+        'embed',
+        'param',
+        'track',
+        'source',
+        'canvas',
+        'map',
+        'area',
+        'svg',
+        'math',
+      ];
+      elementsToRemove.forEach((element) => {
+        const el = document.querySelector(element);
+        if (el) el.remove();
+      });
+      return document.body.innerText; // Return the cleaned text content
     });
-    return document.body.innerText; // Return the cleaned text content
-  });
+    return { title, content }; // Return title and content
+  };
 
-  await browser.close(); // Close the browser
+  try {
+    page = await browser.newPage(); // Create a new page
 
-  return { title, content }; // Return title and content
+    // Set a shorter timeout for the page to load
+    const timeout = 10000; // 10 seconds
+    await page.goto(url, { waitUntil: 'networkidle', timeout }); // Navigate to the URL
+
+    // If the page loads successfully, extract the title and content
+    return await extractContent(page); // Use the helper function
+  } catch (error: unknown) {
+    // Define the type of error here
+    const typedError = error as Error; // Cast to Error
+
+    console.error(`Error fetching content: ${typedError.message}`);
+
+    // If it's a timeout error, try to extract the content anyway
+    if (typedError.message.includes('Timeout')) {
+      console.warn('Timeout occurred, attempting to extract content anyway.');
+      try {
+        return await extractContent(page); // Use the helper function
+      } catch (extractionError: unknown) {
+        // Define the type of extractionError here
+        const typedExtractionError = extractionError as Error; // Cast to Error
+        console.error(`Failed to extract content after timeout: ${typedExtractionError.message}`);
+      }
+    }
+
+    throw error; // Rethrow the error to be handled in the router
+  } finally {
+    await browser.close(); // Ensure the browser is closed
+  }
 };
 
 export const articleReaderRouter: Router = (() => {
@@ -92,8 +122,7 @@ export const articleReaderRouter: Router = (() => {
       handleServiceResponse(serviceResponse, res);
       return;
     } catch (error) {
-      console.error(`Error fetching content ${(error as Error).message}`);
-      const errorMessage = `Error fetching content ${(error as Error).message}`;
+      const errorMessage = `Error fetching content: ${(error as Error).message}`;
       const serviceResponse = new ServiceResponse(
         ResponseStatus.Failed,
         errorMessage,
