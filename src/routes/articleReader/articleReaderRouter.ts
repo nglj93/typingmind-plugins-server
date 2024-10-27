@@ -123,6 +123,7 @@ export const articleReaderRouter: Router = (() => {
       return;
     } catch (error) {
       const errorMessage = `Error fetching content: ${(error as Error).message}`;
+      console.error(errorMessage);
       const serviceResponse = new ServiceResponse(
         ResponseStatus.Failed,
         errorMessage,
