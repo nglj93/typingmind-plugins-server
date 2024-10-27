@@ -1,10 +1,7 @@
 import { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
-import { Readability } from '@mozilla/readability';
-import * as cheerio from 'cheerio';
 import express, { Request, Response, Router } from 'express';
-import got from 'got';
 import { StatusCodes } from 'http-status-codes';
-import { JSDOM } from 'jsdom';
+import { chromium } from 'playwright'; // Change to Playwright
 
 import { createApiResponse } from '@/api-docs/openAPIResponseBuilders';
 import { ResponseStatus, ServiceResponse } from '@/common/models/serviceResponse';
@@ -15,48 +12,49 @@ import { ArticleReaderSchema } from './articleReaderModel';
 export const articleReaderRegistry = new OpenAPIRegistry();
 articleReaderRegistry.register('ArticleReader', ArticleReaderSchema);
 
-const removeUnwantedElements = (_cheerio: any) => {
-  const elementsToRemove = [
-    'footer',
-    'header',
-    'nav',
-    'script',
-    'style',
-    'link',
-    'meta',
-    'noscript',
-    'img',
-    'picture',
-    'video',
-    'audio',
-    'iframe',
-    'object',
-    'embed',
-    'param',
-    'track',
-    'source',
-    'canvas',
-    'map',
-    'area',
-    'svg',
-    'math',
-  ];
-
-  elementsToRemove.forEach((element) => _cheerio(element).remove());
-};
-
 const fetchAndCleanContent = async (url: string) => {
-  const { body } = await got(url);
-  const $ = cheerio.load(body);
-  const title = $('title').text();
-  removeUnwantedElements($);
-  const doc = new JSDOM($.text(), {
-    url: url,
-  });
-  const reader = new Readability(doc.window.document);
-  const article = reader.parse();
+  const browser = await chromium.launch({ headless: true }); // Launch Playwright
+  const page = await browser.newPage(); // Create a new page
+  await page.goto(url, { waitUntil: 'networkidle' }); // Navigate to the URL
 
-  return { title, content: article ? article.textContent : '' };
+  const title = await page.title(); // Get the title
+  const content = await page.evaluate(() => {
+    // Remove unwanted elements
+    const elementsToRemove = [
+      'footer',
+      'header',
+      'nav',
+      'script',
+      'style',
+      'link',
+      'meta',
+      'noscript',
+      'img',
+      'picture',
+      'video',
+      'audio',
+      'iframe',
+      'object',
+      'embed',
+      'param',
+      'track',
+      'source',
+      'canvas',
+      'map',
+      'area',
+      'svg',
+      'math',
+    ];
+    elementsToRemove.forEach((element) => {
+      const el = document.querySelector(element);
+      if (el) el.remove();
+    });
+    return document.body.innerText; // Return the cleaned text content
+  });
+
+  await browser.close(); // Close the browser
+
+  return { title, content }; // Return title and content
 };
 
 export const articleReaderRouter: Router = (() => {
