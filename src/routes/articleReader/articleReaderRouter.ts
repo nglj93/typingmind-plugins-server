@@ -13,18 +13,19 @@ export const articleReaderRegistry = new OpenAPIRegistry();
 articleReaderRegistry.register('ArticleReader', ArticleReaderSchema);
 
 const featchCleanContentFromFirecrawl = async (url: string) => {
+  const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
   try {
     const headers = {
-      Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}`,
+      Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
       'Content-Type': 'application/json',
     };
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ url, format: 'markdown' }),
+      body: JSON.stringify({ url, formats: ['markdown'] }),
     });
     if (!response.ok) {
-      console.error(response.json());
+      console.error(await response.json());
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
@@ -143,7 +144,8 @@ export const articleReaderRouter: Router = (() => {
 
       // check if the body contain "Verify you are human by completing"
       // rerun the scrap using firecrawl api
-      if (content.content.includes('Verify you are human by completing')) {
+      const pattern = 'Verify you are human by completing';
+      if (content.content.includes(pattern)) {
         console.warn('Human verification required, attempting to extract content using Firecrawl API.');
         // Call the Firecrawl API
         content = await featchCleanContentFromFirecrawl(url);
