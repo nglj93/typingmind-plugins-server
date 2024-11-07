@@ -144,8 +144,12 @@ export const articleReaderRouter: Router = (() => {
 
       // check if the body contain "Verify you are human by completing"
       // rerun the scrap using firecrawl api
-      const pattern = 'Verifying you are human by completing';
-      if (content.content.includes(pattern)) {
+      const patterns = [
+        'Verify you are human by completing the action below',
+        'Verifying you are human. This may take a few seconds.',
+      ];
+
+      if (patterns.some((pattern) => content.content.includes(pattern))) {
         console.warn('Human verification required, attempting to extract content using Firecrawl API.');
         // Call the Firecrawl API
         content = await featchCleanContentFromFirecrawl(url);
