@@ -12,6 +12,34 @@ import { ArticleReaderSchema } from './articleReaderModel';
 export const articleReaderRegistry = new OpenAPIRegistry();
 articleReaderRegistry.register('ArticleReader', ArticleReaderSchema);
 
+const featchCleanContentFromFirecrawl = async (url: string) => {
+  const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
+  try {
+    const headers = {
+      Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+      'Content-Type': 'application/json',
+    };
+    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ url, formats: ['markdown'] }),
+    });
+    if (!response.ok) {
+      console.error(await response.json());
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    if (data.success) {
+      return data.data;
+    } else {
+      throw new Error('Failed to extract content using FireCrawl');
+    }
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+};
+
 const fetchAndCleanContent = async (url: string) => {
   const browser = await chromium.launch({ headless: true }); // Launch Playwright
   let page; // Declare page variable outside the try block
@@ -112,7 +140,17 @@ export const articleReaderRouter: Router = (() => {
     }
 
     try {
-      const content = await fetchAndCleanContent(url);
+      let content = await fetchAndCleanContent(url);
+
+      // check if the body contain "Verify you are human by completing"
+      // rerun the scrap using firecrawl api
+      const pattern = 'Verify you are human by completing';
+      if (content.content.includes(pattern)) {
+        console.warn('Human verification required, attempting to extract content using Firecrawl API.');
+        // Call the Firecrawl API
+        content = await featchCleanContentFromFirecrawl(url);
+      }
+
       const serviceResponse = new ServiceResponse(
         ResponseStatus.Success,
         'Service is healthy',
