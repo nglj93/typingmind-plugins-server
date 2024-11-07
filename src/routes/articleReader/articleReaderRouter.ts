@@ -1,6 +1,7 @@
 import { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import express, { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import fetch from 'node-fetch';
 import { chromium } from 'playwright'; // Change to Playwright
 
 import { createApiResponse } from '@/api-docs/openAPIResponseBuilders';
@@ -28,8 +29,8 @@ const featchCleanContentFromFirecrawl = async (url: string) => {
       console.error(await response.json());
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    const data = await response.json();
-    if (data.success) {
+    const data: any = await response.json();
+    if (data?.success) {
       return data.data;
     } else {
       throw new Error('Failed to extract content using FireCrawl');
